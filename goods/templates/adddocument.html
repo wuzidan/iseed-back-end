@@ -1,0 +1,88 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="container">
+    <h1>题目文档提交</h1>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>学生学号:</label>
+            <input type="text" name="s_num" value="{{ snum }}" class="form-control" placeholder="请输入学号" required>
+        </div>
+
+        <!-- 题目选择框 -->
+        <div class="form-group">
+            <label>题目选择:</label>
+            <select name="topic_id" class="form-control" id="topicSelect" required>
+                <option value="">-- 请选择题目 --</option>
+                {% for topic in topics %}
+                    <option value="{{ topic.id }}" data-title="{{ topic.title }}" data-des="{{ topic.des }}" data-tnum="{{ topic.t_num }}">
+                        {{ topic.title }}
+                    </option>
+                {% endfor %}
+                <option value="other">其他</option>
+            </select>
+        </div>
+
+        <!-- 题目描述显示区域 -->
+        <div class="form-group" id="topicDescription">
+            <label id="desLabel"></label>
+        </div>
+
+        <!-- 其他题目输入区域 -->
+        <div class="form-group" id="otherTopicFields" style="display: none;">
+            <div class="form-group">
+                <label>标题:</label>
+                <input type="text" name="other_title" class="form-control" placeholder="请输入标题">
+            </div>
+            <div class="form-group">
+                <label>描述:</label>
+                <textarea name="other_des" class="form-control" placeholder="请输入描述"></textarea>
+            </div>
+        </div>
+
+        <!-- 添加文件上传控件 -->
+        <div class="form-group">
+            <label>上传文件:</label>
+            <input type="file" name="file" class="form-control-file" required>
+        </div>
+
+        <div class="form-group">
+            <label>提交状态:</label>
+            <select name="status" class="form-control">
+                <option value="未提交">未提交</option>
+                <option value="草稿">草稿</option>
+                <option value="已提交">已提交</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">提交</button>
+    </form>
+</div>
+
+<script>
+// 处理题目选择逻辑
+document.getElementById('topicSelect').addEventListener('change', function() {
+    const selectedValue = this.value;
+    const descriptionDiv = document.getElementById('topicDescription');
+    const otherFieldsDiv = document.getElementById('otherTopicFields');
+    const desLabel = document.getElementById('desLabel');
+
+    // 重置所有动态区域
+    descriptionDiv.style.display = 'none';
+    otherFieldsDiv.style.display = 'none';
+
+    if (selectedValue === 'other') {
+        // 显示其他题目输入框
+        otherFieldsDiv.style.display = 'block';
+    } else if (selectedValue) {
+        // 获取选中题目的数据
+        const selectedOption = this.options[this.selectedIndex];
+        const des = selectedOption.getAttribute('data-des');
+
+        // 显示描述
+        desLabel.textContent = des;
+        descriptionDiv.style.display = 'block';
+    }
+});
+</script>
+{% endblock %}

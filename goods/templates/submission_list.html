@@ -1,0 +1,38 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>我的提交记录</h2>
+    {% if submissions %}
+    <table class="table table-striped mt-3">
+        <thead>
+            <tr>
+                <th>提交时间</th>
+                <th>题目编号</th>
+                <th>文件名</th>
+                <th>状态</th>
+                <th>成绩</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for submission in submissions %}
+            <tr>
+                <td>{{ submission.up_time|date:"Y-m-d H:i" }}</td>
+                <td>{{ submission.t_num }}</td>
+                <td>{{ submission.filename }}</td>
+                <td>{{ submission.status }}</td>
+                <td>{{ submission.score|default:"未评分" }}</td>
+            <td>
+                    <a href="/download_document/" class="btn btn-sm btn-primary">下载</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    {% else %}
+    <div class="alert alert-info mt-3">暂无提交记录</div>
+    {% endif %}
+</div>
+{% endblock %}

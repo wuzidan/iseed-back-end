@@ -1,0 +1,103 @@
+{% extends 'layout.html' %}
+{% block content %}
+    {#<div>#}
+    {#    <button value="新增学生" onclick="location.href=('/studentadd/')" >新增学生</button>#}
+    {#    <button value="下载" onclick="location.href=('/download_document/')" >下载</button>#}
+    {#</div>#}
+    <div class="container">
+        <div style="margin-bottom: 10px">
+            <a class="btn btn-success" href="/studentadd/">
+                <span class="glyphicon glyphicon-plus-sign" aria-hidden="true"></span>
+                新增学生
+            </a>
+
+            <a class="btn btn-success" href="/download_document/">
+                <span class="glyphicon glyphicon-plus-sign" aria-hidden="true"></span>
+                下载
+            </a>
+        </div>
+        <div class="panel panel-default">
+            <!-- Default panel contents -->
+            <div class="panel-heading">
+                <span class="glyphicon glyphicon-th-list" aria-hidden="true"></span>
+                学生列表
+            </div>
+
+            <!-- Table -->
+            <table class="table table-bordered">
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>姓名</th>
+                    <th>性别</th>
+                    <th>用户名</th>
+                    <th>密码</th>
+                    <th>邮箱</th>
+                    <th>手机</th>
+                    <th>等级</th>
+                    <th>其他</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for student in students %}
+                    <tr>
+                        <td>{{ student.id }}</td>
+                        <td>{{ student.name }}</td>
+                        <td>{{ student.sex }}</td>
+                        <td>{{ student.username }}</td>
+                        <td>{{ student.password }}</td>
+                        <td>{{ student.email }}</td>
+                        <td>{{ student.phone }}</td>
+                        <td>{{ student.get_level_display }}</td>
+                        <td><button onclick="location.href=('/updatestudent/?sid={{ student.id }}')">编辑</button><button onclick="location.href=('/deletestudent/{{ student.id }}')" >删除</button></td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+        </div>
+{#                <form method="post" class="">#}
+{#                {% csrf_token %}#}
+{#                <input type="text" name="name" placeholder="姓名">#}
+{#                <input type="text" name="sex" placeholder="性别">#}
+{#                <input type="text" name="username" placeholder="用户名">#}
+{#                <input type="text" name="password" placeholder="密码">#}
+{#                <input type="text" name="email" placeholder="邮箱">#}
+{#                <input type="text" name="phone" placeholder="手机">#}
+{#                <input type="submit" value="增加用户">#}
+{#            </form>#}
+    </div>
+    {#    <table border="1">#}
+    {#        <thead>#}
+    {#        <tr>#}
+    {#            <th>ID</th>#}
+    {#            <th>姓名</th>#}
+    {#            <th>性别</th>#}
+    {#            <th>用户名</th>#}
+    {#            <th>密码</th>#}
+    {#            <th>邮箱</th>#}
+    {#            <th>手机</th>#}
+    {#            <th>等级</th>#}
+    {#            <th>其他</th>#}
+    {#        </tr>#}
+    {#        </thead>#}
+    {#        <tbody>#}
+    {#        {% for student in students %}#}
+    {#            <tr>#}
+    {#                <td>{{ student.id }}</td>#}
+    {#                <td>{{ student.name }}</td>#}
+    {#                <td>{{ student.sex }}</td>#}
+    {#                <td>{{ student.username }}</td>#}
+    {#                <td>{{ student.password }}</td>#}
+    {#                <td>{{ student.email }}</td>#}
+    {#                <td>{{ student.phone }}</td>#}
+    {#                <td>{{ student.get_level_display }}</td>#}
+    {#                <td><button onclick="location.href=('/updatestudent/?sid={{ student.id }}')">编辑</button><button onclick="location.href=('/deletestudent/{{ student.id }}')" >删除</button></td>#}
+    {#            </tr>#}
+    {#        {% endfor %}#}
+    {#        </tbody>#}
+    {#    </table>#}
+
+
+{% endblock %}
+

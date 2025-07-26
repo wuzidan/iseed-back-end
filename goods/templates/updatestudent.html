@@ -1,0 +1,40 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container">
+    <form action="/updatestudent/?sid={{ student.id }}" method="post">
+        {% csrf_token %}
+        <div class="form-group" style="width: 100%">
+            <label for="name">姓名</label>
+            <br>
+            <input type="text" class="form-control" value="{{ student.name }}" id="name" name="name" placeholder="姓名">
+        </div>
+        <div class="form-group" style="width: 100%">
+            <label for="sex">性别</label>
+            <br>
+            <input type="text" class="form-control" value="{{ student.sex }}" id="sex" name="sex" placeholder="性别">
+        </div>
+        <div class="form-group" style="width: 100%">
+            <label for="username">用户名</label>
+            <br>
+            <input type="text" class="form-control" value="{{ student.username }}" id="username" name="username" placeholder="用户名">
+        </div>
+        <div class="form-group" style="width: 100%">
+            <label for="Password">密码</label>
+            <br>
+            <input type="text" class="form-control" value="{{ student.password }}" id="Password" name="password" placeholder="密码">
+        </div>·1564
+        <div class="form-group" style="width: 100%">
+            <label for="email">邮箱</label>
+            <br>
+            <input type="email" class="form-control" value="{{ student.email }}" id="email" name="email" placeholder="邮箱">
+        </div>
+        <div class="form-group" style="width: 100%">
+            <label for="phone">手机</label>
+            <br>
+            <input type="number" class="form-control" value="{{ student.phone }}" id="phone" name="phone" placeholder="手机">
+        </div>
+        <button type="submit" class="btn btn-default">Submit</button>
+    </form>
+</div>
+{% endblock %}
