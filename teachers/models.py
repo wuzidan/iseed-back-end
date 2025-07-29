@@ -99,7 +99,7 @@ class CourseResource(models.Model):
 
 class Homework(models.Model):
     
-    h_num = models.CharField(max_length=20, default=str(uuid.uuid4())[:8], verbose_name="作业号")
+    h_num = models.CharField(max_length=20, verbose_name="作业号")
     l_num = models.CharField(max_length=20, null=True, verbose_name="课程号")
     title = models.CharField(max_length=20, null=True, verbose_name="作业标题")
     des = models.TextField(null=True, verbose_name="作业详细说明")
@@ -115,6 +115,14 @@ class Homework(models.Model):
 
     def __str__(self):
         return self.title
+    
+    def save(self, *args, **kwargs):
+        # 系统生成作业号
+        if not self.h_num:
+            today = datetime.date.today().strftime('%Y%m%d')
+            count = Homework.objects.filter(createtime__date=datetime.date.today()).count() + 1
+            self.h_num = f"H{today}{count:05d}"
+        super().save(*args, **kwargs)
 
 class CourseEnrollment(models.Model):
     
