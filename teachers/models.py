@@ -83,12 +83,21 @@ class Class(models.Model):
 
 class CourseResource(models.Model):
     
-    r_num = models.CharField(max_length=20, default=str(uuid.uuid4())[:8], verbose_name="资源序号")
+    r_num = models.CharField(max_length=20, verbose_name="资源序号")
     l_num = models.CharField(max_length=20, null=True, verbose_name="课程号")
-    r_name = models.CharField(max_length=64, null=True, verbose_name="文件名")
+    r_title = models.TextField(null=True, verbose_name="课程资源标题")
+    r_des = models.TextField(null=True, verbose_name="课课程资源简介")
     r_path = models.CharField(max_length=255, null=True, verbose_name="文件存储路径")
     r_type = models.CharField(max_length=20, null=True, verbose_name="文件类型")
     createtime = models.DateTimeField(auto_now_add=True, verbose_name="注册时间")
+
+    def save(self, *args, **kwargs):
+        # 系统生成作业号
+        if not self.r_num:
+            today = datetime.date.today().strftime('%Y%m%d')
+            count = CourseResource.objects.filter(createtime__date=datetime.date.today()).count() + 1
+            self.r_num = f"CR{today}{count:05d}"
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "课程资源"

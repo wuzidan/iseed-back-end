@@ -1,3 +1,5 @@
+import os
+
 import jwt
 from django.shortcuts import render
 from rest_framework.response import Response
@@ -9,12 +11,17 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.permissions import AllowAny
 from django.views.decorators.csrf import csrf_exempt
 from utils.middleware import ThreadLocalStorage
-from .models import Teacher, Class, Course, CourseEnrollment
+from .models import Teacher, Class, Course, CourseEnrollment, CourseResource
 import utils.custom_jwt  # 假设已存在教师JWT序列化器
 from django.db import transaction
 
 from django.utils import timezone
 import datetime
+from students.models import Student  # 添加学生模型导入
+
+from .models import Teacher, Class, Course, CourseEnrollment, Homework  # 更新导入
+
+from utils.up_down_doc import upload_document  # 添加文件上传工具导入
 
 # 教师登录验证
 @api_view(['POST'])
@@ -561,3 +568,298 @@ def enroll_course(request):
             'message': f'选修操作失败: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+@api_view(['POST'])
+@csrf_exempt
+def update_student_class(request):
+    if request.method == 'POST':
+        # 获取当前教师工号
+        t_id = ThreadLocalStorage.get('user_id')
+        teacher = Teacher.objects.get(id=t_id)
+        t_num = teacher.t_num
+        if not t_num:
+            return Response({
+                'success': False,
+                'message': '用户未登录或会话已过期'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+            
+        # 获取请求参数
+        s_num = request.data.get('s_num')
+        c_num = request.data.get('c_num')
+        
+        # 参数验证
+        if not all([s_num, c_num]):
+            return Response({
+                'success': False,
+                'message': '学生学号和班级号为必填项'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        # 验证班级是否属于当前教师
+        try:
+            class_obj = Class.objects.get(c_num=c_num, t_num=t_num)
+        except Class.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': '无权限修改该班级学生'
+            }, status=status.HTTP_403_FORBIDDEN)
+            
+        # 更新学生班级
+        try:
+            student = Student.objects.get(s_num=s_num)
+            student.class_num = c_num
+            student.save()
+            
+            return Response({
+                'success': True,
+                'message': '学生班级更新成功',
+                'data': {
+                    's_num': student.s_num,
+                    'name': student.name,
+                    'class_num': student.class_num
+                }
+            }, status=status.HTTP_200_OK)
+        except Student.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': '学生不存在'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+@csrf_exempt
+def update_students_class_batch(request):
+    if request.method == 'POST':
+        # 获取当前教师工号
+        t_id = ThreadLocalStorage.get('user_id')
+        teacher = Teacher.objects.get(id=t_id)
+        t_num = teacher.t_num
+        if not t_num:
+            return Response({
+                'success': False,
+                'message': '用户未登录或会话已过期'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+            
+        # 获取请求参数
+        s_num_list = request.data.get('s_num_list')  # 学生号列表
+        c_num = request.data.get('c_num')  # 目标班级号
+        
+        # 参数验证
+        if not all([s_num_list, c_num]) or not isinstance(s_num_list, list):
+            return Response({
+                'success': False,
+                'message': '学生学号列表和班级号为必填项，且学生学号必须为列表格式'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        # 验证班级是否属于当前教师
+        try:
+            class_obj = Class.objects.get(c_num=c_num, t_num=t_num)
+        except Class.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': '无权限修改该班级学生'
+            }, status=status.HTTP_403_FORBIDDEN)
+            
+        # 查询所有存在的学生
+        existing_students = Student.objects.filter(s_num__in=s_num_list)
+        existing_s_nums = [student.s_num for student in existing_students]
+        non_existing_s_nums = list(set(s_num_list) - set(existing_s_nums))
+        
+        # 批量更新学生班级
+        if existing_students.exists():
+            existing_students.update(class_num=c_num)
+            
+            # 准备返回数据
+            updated_students = existing_students.values('s_num', 'name', 'class_num')
+            result = {
+                'success': True,
+                'message': f'成功更新{len(existing_students)}名学生的班级信息',
+                'data': {
+                    'updated_students': list(updated_students),
+                    'non_existing_students': non_existing_s_nums
+                }
+            }
+            return Response(result, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'success': False,
+                'message': '未找到任何有效学生',
+                'data': {
+                    'non_existing_students': non_existing_s_nums
+                }
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+@csrf_exempt
+@transaction.atomic
+def create_homework(request):
+    if request.method == 'POST':
+        # 获取当前教师工号
+        t_id = ThreadLocalStorage.get('user_id')
+        teacher = Teacher.objects.get(id=t_id)
+        t_num = teacher.t_num
+        if not t_num:
+            return Response({
+                'success': False,
+                'message': '用户未登录或会话已过期'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+            
+        # 获取请求参数
+        l_num = request.data.get('l_num')  # 课程号
+        title = request.data.get('title')  # 作业标题
+        des = request.data.get('des', '')  # 作业说明
+        
+        # 获取上传文件
+        homework_file = request.FILES.get('file')  # 从FILES获取文件对象
+        
+        # 参数验证
+        if not all([l_num, title]):
+            return Response({
+                'success': False,
+                'message': '课程号和作业标题为必填项'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        # 验证课程是否属于当前教师
+        try:
+            course = Course.objects.get(l_num=l_num, t_num=t_num)
+        except Course.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': '无权限操作此课程或课程不存在'
+            }, status=status.HTTP_403_FORBIDDEN)
+            
+        # 文件上传处理
+        hd_path = ''
+        hd_name = ''
+        hd_type = ''
+        
+        if homework_file:
+            # 定义文件上传参数
+            save_dir = 'media\\homework_files'  # 文件保存目录
+            allowed_types = ['.pdf', '.docx', '.doc', '.txt', '.zip', '.rar']  # 允许的文件类型
+            hd_name = homework_file.name  # 原始文件名
+            hd_type = os.path.splitext(hd_name)[1].lower()  # 文件类型
+            
+            # 调用文件上传工具
+            upload_result = upload_document(
+                file=homework_file,
+                save_dir=save_dir,
+                filename=hd_name,
+                allowed_types=allowed_types
+            )
+            
+            # 检查上传结果
+            if not upload_result['success']:
+                return Response({
+                    'success': False,
+                    'message': upload_result['message']
+                }, status=status.HTTP_400_BAD_REQUEST)
+            hd_path = upload_result['path']  # 获取上传后的文件路径
+        
+        # 创建作业记录
+        try:
+            homework = Homework(
+                l_num=l_num,
+                title=title,
+                des=des,
+                hd_name=hd_name,
+                hd_path=hd_path,
+                hd_type=hd_type
+            )
+            homework.save()
+            
+            return Response({
+                'success': True,
+                'message': '作业发布成功',
+                'data': {
+                    'h_num': homework.h_num,
+                    'l_num': homework.l_num,
+                    'title': homework.title,
+                    'hd_name': homework.hd_name,
+                    'hd_path': homework.hd_path,
+                    'hd_type': homework.hd_type,
+                    'createtime': homework.createtime.strftime('%Y-%m-%d %H:%M:%S')
+                }
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': f'作业创建失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+@api_view(['POST'])
+@csrf_exempt
+@transaction.atomic
+def upload_course_resource(request):
+    # 获取当前教师信息
+    id = ThreadLocalStorage.get('user_id')
+    try:
+        teacher = Teacher.objects.get(id=id)
+    except Teacher.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': '用户未登录或会话已过期'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+
+    # 验证请求参数
+    l_num = request.data.get('l_num')
+    r_title = request.data.get('r_title')
+    r_des = request.data.get('r_des', '')
+    file = request.FILES.get('file')
+
+    if not all([l_num, r_title, file]):
+        return Response({
+            'success': False,
+            'message': '课程号、资源标题和文件为必填项'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # 验证课程归属权
+    try:
+        course = Course.objects.get(l_num=l_num)
+        if course.t_num != teacher.t_num:
+            return Response({
+                'success': False,
+                'message': '无权限操作此课程资源'
+            }, status=status.HTTP_403_FORBIDDEN)
+    except Course.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': '课程不存在'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    # 处理文件上传
+    save_dir = 'media\\course_resources'
+    filename = file.name
+    allowed_types = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.zip', '.rar']
+
+    upload_result = upload_document(file, save_dir, filename, allowed_types)
+    if not upload_result['success']:
+        return Response({
+            'success': False,
+            'message': upload_result['message']
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # 创建课程资源记录
+    resource = CourseResource(
+        l_num=l_num,
+        r_title=r_title,
+        r_des=r_des,
+        r_path=upload_result['path'],
+        r_type=filename.split('.')[-1].lower() if '.' in filename else ''
+    )
+    resource.save()
+
+    return Response({
+        'success': True,
+        'message': '课程资源上传成功',
+        'data': {
+            'r_num': resource.r_num,
+            'l_num': resource.l_num,
+            'r_title': resource.r_title,
+            'r_des': resource.r_des,
+            'r_path': resource.r_path,
+            'r_type': resource.r_type,
+            'createtime': resource.createtime
+        }
+    }, status=status.HTTP_201_CREATED)
