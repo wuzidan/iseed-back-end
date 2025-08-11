@@ -110,10 +110,14 @@ def upload_document(request):
     try:
         # 创建documents子目录（如果不存在）
         if not os.path.exists(os.path.join(settings.MEDIA_ROOT, 'documents')):
+            #settings.MEDIA_ROOT 是Django项目的媒体文件目录路径（media的路径）,所有用户上传文件都放在这里
+            #document是我们要创建的子目录名字，存放文档类上传文件
+            #join函数把前面两个拼在一起得到完整路径
             os.makedirs(os.path.join(settings.MEDIA_ROOT, 'documents'))
 
         # 保存文件
         file_path = default_storage.save(f'documents/{file.name}', ContentFile(file.read()))
+        #ContentFile(file.read())是把file.read()读到的二进制内容转换成django存储体系能识别的文件格式
         return JsonResponse({
             'message': '文件上传成功',
             'file_path': file_path,

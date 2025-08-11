@@ -1,7 +1,7 @@
 # iseed-back-end
 1、main目录相当于根目录，与根目录同名的为DjangoProject，在该目录下，有全局配置setting文件，以及全局urls路径文件。
 
-2、在全局urls文件中只有两个是属于本项目，分别是students和teachers。
+2、在全局urls文件中只有两个是属于本项目，分别是students和teachers。 
 
 3、utils目录下是全局工具文件，分别使用了中间件(个人理解类似于一个拦截器)和jwt验证(登录验证以及后续线程管理所需)
 

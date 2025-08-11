@@ -2,6 +2,7 @@ import os
 
 import jwt
 from django.shortcuts import render
+from django.http import JsonResponse
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth.hashers import make_password, check_password
@@ -22,6 +23,20 @@ from students.models import Student  # 添加学生模型导入
 from .models import Teacher, Class, Course, CourseEnrollment, Homework  # 更新导入
 
 from utils.up_down_doc import upload_document  # 添加文件上传工具导入
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Teacher
+from .serializers import TeacherSerializer
+
+from .models import Course
+from .serializers import CourseSerializer
+
+from .models import Homework
+from .serializers import HomeworkSerializer
+
 
 # 教师登录验证
 @api_view(['POST'])
@@ -184,6 +199,33 @@ def teacher_register(request):
                 'success': False,
                 'message': '用户名已存在'
             }, status=status.HTTP_400_BAD_REQUEST)
+
+# 获取教师个人信息接口
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_teacher_profile(request, t_num):
+    try:
+        # 查询教师信息
+        try:
+            t_num_int = int(t_num)
+        except ValueError:
+            return Response({'success': False, 'error': '教师编号必须为数字'}, status=status.HTTP_400_BAD_REQUEST)
+        teacher = Teacher.objects.get(t_num=t_num_int)
+        serializer = TeacherSerializer(teacher)
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+    except Teacher.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': '教师不存在'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         try:
             # 创建Django User对象
             user = User.objects.create_user(
@@ -624,6 +666,33 @@ def update_student_class(request):
                 'message': '学生不存在'
             }, status=status.HTTP_404_NOT_FOUND)
 
+@api_view(['GET'])
+def get_teacher_courses(request):
+    # 获取当前教师信息
+    teacher_id = ThreadLocalStorage.get('user_id')
+    if not teacher_id:
+        return Response({
+            'success': False,
+            'message': '用户未登录'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    try:
+        teacher = Teacher.objects.get(id=teacher_id)
+        # 查询该教师创建的所有课程
+        courses = Course.objects.filter(t_num=teacher.t_num)
+        serializer = CourseSerializer(courses, many=True)
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        })
+    except Teacher.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': '教师不存在'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+
 @api_view(['POST'])
 @csrf_exempt
 def update_students_class_batch(request):
@@ -787,7 +856,7 @@ def create_homework(request):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-
+#上传课程资源
 @api_view(['POST'])
 @csrf_exempt
 @transaction.atomic
@@ -863,3 +932,74 @@ def upload_course_resource(request):
             'createtime': resource.createtime
         }
     }, status=status.HTTP_201_CREATED)
+
+
+# 获取单个课程信息
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_course(request, l_num):
+    try:
+        course = Course.objects.get(l_num=l_num)
+        serializer = CourseSerializer(course)
+        return Response(serializer.data)
+    except Course.DoesNotExist:
+        return Response({'error': '课程不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+# 创建课程
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def create_course(request):
+    serializer = CourseSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# 更新课程
+@api_view(['PUT'])
+@permission_classes([AllowAny])
+def update_course(request, l_num):
+    try:
+        course = Course.objects.get(l_num=l_num)
+        serializer = CourseSerializer(course, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Course.DoesNotExist:
+        return Response({'error': '课程不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# 获取作业列表
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_homeworks(request):
+    l_num = request.query_params.get('l_num')
+    if l_num:
+        homeworks = Homework.objects.filter(l_num=l_num)
+    else:
+        homeworks = Homework.objects.all()
+    serializer = HomeworkSerializer(homeworks, many=True)
+    return Response(serializer.data)
+
+# 获取单个作业信息
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_homework(request, h_num):
+    try:
+        homework = Homework.objects.get(h_num=h_num)
+        serializer = HomeworkSerializer(homework)
+        return Response(serializer.data)
+    except Homework.DoesNotExist:
+        return Response({'error': '作业不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+# 创建作业
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def create_homework(request):
+    serializer = HomeworkSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+

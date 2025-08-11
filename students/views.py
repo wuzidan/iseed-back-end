@@ -17,17 +17,31 @@ from django.views.decorators.csrf import csrf_exempt
 from utils import custom_jwt
 import os
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from django.http import JsonResponse
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from utils.up_down_doc import upload_document
-from teachers.models import Homework, Course
+from teachers.models import Course, Homework, CourseResource, CourseEnrollment
+from rest_framework import status
+from .serializers import CourseSerializer
 from .models import Submission
+from goods.models import DocumentSubmission
 from utils.up_down_doc import download_document
-from .serializers import SubmissionSerializer
+from .serializers import SubmissionSerializer, HomeworkSerializer
 import base64
 import mimetypes
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Student
+from .serializers import StudentSerializer
+from goods.models import DocumentSubmission
+from .serializers import DocumentSubmissionSerializer
+
+from .models import Submission
+from .serializers import SubmissionSerializer
 
 # 学生登录验证
 @api_view(['POST'])
@@ -197,6 +211,40 @@ def student_change_password(request):
         'success': False,
         'message': '请使用POST方法'
     }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+# 获取学生课程信息
+@api_view(['GET'])
+def get_courses(request):
+    # 获取当前学生信息
+    student_id = ThreadLocalStorage.get('user_id')
+    if not student_id:
+        return Response({
+            'success': False,
+            'message': '用户未登录'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    try:
+        student = Student.objects.get(id=student_id)
+        class_num = student.class_num
+        
+        # 获取班级选修的课程
+        enrollments = CourseEnrollment.objects.filter(c_num=class_num)
+        course_nums = [enrollment.l_num for enrollment in enrollments]
+        print(f"课程编号列表: {course_nums}")
+        
+        # 获取课程信息及相关资源
+        courses = Course.objects.filter(l_num__in=course_nums)
+        serializer = CourseSerializer(courses, many=True)
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        })
+    except Student.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': '学生不存在'
+        }, status=status.HTTP_404_NOT_FOUND)
 
 # 学生注册功能
 @api_view(['POST'])
@@ -375,9 +423,10 @@ def upload_homework(request):
     })
 
 
+# 获取提交记录
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def get_submission_record(request):
+def get_submission_records(request):
     """
     获取学生作业提交记录及文件（JSON包含Base64编码的文件内容）
     """
@@ -498,7 +547,7 @@ def get_submission_record(request):
 
     # return Response(response_data)
 
-
+# 获取提交文件
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def get_submission_document(request):
@@ -521,3 +570,112 @@ def get_submission_document(request):
             'success': False,
             'message': f'文件路径错误：{up_path}'
         }, status=status.HTTP_400_BAD_REQUEST)
+
+# 获取学生信息
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_student_info(request,s_num=None):
+    try:
+        # 从请求中获取学生ID或学号
+        if s_num:
+            student = Student.objects.get(s_num=s_num)
+        else:
+            # 如果没有提供学号，获取当前登录学生
+            user_id = ThreadLocalStorage.get('user_id')
+            student = Student.objects.get(id=user_id)
+
+        serializer = StudentSerializer(student)
+        return Response(serializer.data)
+    except Student.DoesNotExist:
+        return Response({'error': '学生不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+# 修改学生信息
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def update_student_info(request, s_num):
+    try:
+        student = Student.objects.get(s_num=s_num)
+        serializer = StudentSerializer(student, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Student.DoesNotExist:
+        return Response({'error': '学生不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+# 获取课程信息
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_student_courses(request, s_num):
+    try:
+        # 获取学生信息以确定所在班级
+        student = Student.objects.get(s_num=s_num)
+        # 查询班级选修的所有课程
+        enrollments = CourseEnrollment.objects.filter(c_num=student.class_num)
+        course_nums = [enrollment.l_num for enrollment in enrollments]
+        # 获取课程详情及关联的作业和资源
+        courses = Course.objects.filter(l_num__in=course_nums)
+        serializer = CourseSerializer(courses, many=True)
+        return Response(serializer.data)
+    except Student.DoesNotExist:
+        return Response({'error': '学生不存在'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# 获取作业信息
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_student_homeworks(request, s_num):
+    try:
+        # 通过学号获取学生信息
+        student = Student.objects.get(s_num=s_num)
+        # 获取学生所在班级
+        class_num = student.class_num
+        print(f"学生班级: {class_num}")
+        
+        # 通过班级号查询所有关联的课程
+        enrollments = CourseEnrollment.objects.filter(c_num=class_num)
+        course_nums = [enrollment.l_num for enrollment in enrollments]
+        
+        # 获取课程对象列表
+        courses = Course.objects.filter(l_num__in=course_nums)
+        # 通过课程外键关联查询作业
+        # 同时支持外键关联和课程号匹配查询
+        homeworks = Homework.objects.filter(
+            Q(course__in=courses) | Q(l_num__in=course_nums)
+        )
+        print(f"查询到的作业数量: {homeworks.count()}")
+        
+        # 添加空数据检查
+        if not course_nums:
+            return JsonResponse({
+                'error': '班级未关联任何课程',
+                'debug': {
+                    'student_class': class_num,
+                    'course_nums': course_nums,
+                    'homework_count': homeworks.count()
+                }
+            }, status=404)
+        
+        if homeworks.count() == 0:
+            return JsonResponse({
+                'error': '未找到课程对应的作业',
+                'debug': {
+                    'student_class': class_num,
+                    'course_nums': course_nums,
+                    'homework_count': homeworks.count()
+                }
+            }, status=404)
+        serializer = HomeworkSerializer(homeworks, many=True)
+        return JsonResponse({
+            'debug': {
+                'student_class': class_num,
+                'course_nums': course_nums,
+                'homework_count': homeworks.count()
+            },
+            'data': serializer.data
+        }, safe=False)
+    except Student.DoesNotExist:
+        return JsonResponse({'error': '学生不存在'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

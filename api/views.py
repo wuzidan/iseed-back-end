@@ -3,7 +3,7 @@ from rest_framework .response import Response
 from rest_framework.decorators import api_view
 
 from api import serializers
-from goods.models import books
+from goods.models import books 
 
 
 @api_view(['GET', 'POST'])

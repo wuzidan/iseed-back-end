@@ -1,5 +1,6 @@
 import datetime
 from django.db import models
+from django.core.exceptions import ValidationError
 import uuid
 from django.contrib.auth.models import User
 
@@ -23,7 +24,11 @@ class Teacher(models.Model):
         return f"{self.name}({self.t_num})"
 
     def save(self, *args, **kwargs):
-        # 添加save方法生成工号
+        # 密码哈希处理
+        if not self.pk or self.password != Teacher.objects.get(pk=self.pk).password if self.pk else True:
+            from django.contrib.auth.hashers import make_password
+            self.password = make_password(self.password)
+        # 生成工号
         if not self.t_num:
             today = datetime.date.today().strftime('%Y%m%d')
             count = Teacher.objects.filter(createtime__date=datetime.date.today()).count() + 1
@@ -34,7 +39,8 @@ class Course(models.Model):
     
     l_num = models.CharField(max_length=20, verbose_name="课程号")
     title = models.CharField(max_length=20, null=True, verbose_name="课程名")
-    t_num = models.CharField(max_length=20, null=True, verbose_name="教师工号")
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name='courses', verbose_name='教师')
+    t_num = models.CharField(max_length=20, null=True, verbose_name="教师工号", editable=False)
     des = models.TextField(null=True, verbose_name="课程描述")
     type = models.CharField(max_length=64, null=True, verbose_name="课程类型")
     credit = models.IntegerField(null=True, verbose_name="课程学分")
@@ -51,6 +57,9 @@ class Course(models.Model):
             today = datetime.date.today().strftime('%Y%m%d')
             count = Course.objects.filter(createtime__date=datetime.date.today()).count() + 1
             self.l_num = f"{today}{count:05d}"
+        # 从关联教师获取工号
+        if self.teacher:
+            self.t_num = self.teacher.t_num
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -84,7 +93,8 @@ class Class(models.Model):
 class CourseResource(models.Model):
     
     r_num = models.CharField(max_length=20, verbose_name="资源序号")
-    l_num = models.CharField(max_length=20, null=True, verbose_name="课程号")
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='resources', verbose_name="课程", null=True, blank=True)
+    l_num = models.CharField(max_length=20, null=True, verbose_name="课程号", editable=False)
     r_title = models.TextField(null=True, verbose_name="课程资源标题")
     r_des = models.TextField(null=True, verbose_name="课课程资源简介")
     r_path = models.CharField(max_length=255, null=True, verbose_name="文件存储路径")
@@ -109,7 +119,8 @@ class CourseResource(models.Model):
 class Homework(models.Model):
     
     h_num = models.CharField(max_length=20, verbose_name="作业号")
-    l_num = models.CharField(max_length=20, null=True, verbose_name="课程号")
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='homeworks', verbose_name="关联课程", null=True)
+    l_num = models.CharField(max_length=20, null=True, verbose_name="课程号", editable=False)
     title = models.CharField(max_length=20, null=True, verbose_name="作业标题")
     des = models.TextField(null=True, verbose_name="作业详细说明")
     hd_name = models.CharField(max_length=64, null=True, verbose_name="作业文件名")
@@ -131,6 +142,15 @@ class Homework(models.Model):
             today = datetime.date.today().strftime('%Y%m%d')
             count = Homework.objects.filter(createtime__date=datetime.date.today()).count() + 1
             self.h_num = f"H{today}{count:05d}"
+        
+        # 验证课程是否存在
+        # 从关联课程获取课程号
+        self.l_num = self.course.l_num
+        
+        # 验证课程是否存在
+        if not Course.objects.filter(l_num=self.l_num).exists():
+            raise ValidationError(f"课程编号 '{self.l_num}' 不存在，请先创建对应课程")
+        
         super().save(*args, **kwargs)
 
 class CourseEnrollment(models.Model):

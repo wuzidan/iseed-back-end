@@ -12,8 +12,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+from dotenv import load_dotenv
 from pathlib import Path
 from datetime import timedelta
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -116,14 +119,28 @@ WSGI_APPLICATION = "DjangoProject.wsgi.application"
 #         "NAME": BASE_DIR / "db.sqlite3",
 #     }
 # }
+
+# 原始数据库配置
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.mysql",
+#         "NAME": "edusysDjango",#数据库名字
+#         "USER": "root",#mysql用户名
+#         "PASSWORD": "root",#mysql的密码
+#         "HOST": "127.0.0.1",#mysql的IP地址
+#         "PORT": "3306",#mysql端口号
+#     }
+# }
+
+# 当前使用的环境变量配置
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
-        "NAME": "edusysDjango",#数据库名字
-        "USER": "root",#mysql用户名
-        "PASSWORD": "root",#mysql的密码
-        "HOST": "127.0.0.1",#mysql的IP地址
-        "PORT": "3306",#mysql端口号
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST"),
+        "PORT": os.getenv("DB_PORT"),
     }
 }
 

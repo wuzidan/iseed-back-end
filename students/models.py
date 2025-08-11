@@ -54,7 +54,7 @@ class Submission(models.Model):
     s_num = models.CharField(max_length=20, null=True, verbose_name="学生学号")
     h_num = models.CharField(max_length=20, null=True, verbose_name="题目序号")
     up_time = models.DateTimeField(null=True, verbose_name="提交时间")
-    up_fname = models.CharField(max_length=255, null=True, verbose_name="文件名")
+    up_fname = models.CharField(max_length=255, null=True, default='', verbose_name="文件名")
     up_path = models.TextField(null=True, verbose_name="提交文件路径")
     createtime = models.DateTimeField(auto_now_add=True,null=True, verbose_name="创建时间")
     updatetime = models.DateTimeField(auto_now=True, verbose_name="修改时间")
@@ -74,7 +74,7 @@ class Submission(models.Model):
         verbose_name = "题目文档提交"
         verbose_name_plural = "题目文档提交"
 
-    def __str__(self):
+    def __str__(self): 
         return f"提交 {self.u_num} (学生: {self.s_num})"
 
     def save(self, *args, **kwargs):
